@@ -1,0 +1,88 @@
+# Qwen3-4B SFT Training Configuration
+# =====================================
+
+# Model Configuration
+model:
+  base_model: "/data/share/Qwen3-4B-Base"
+  torch_dtype: "bfloat16"
+  attn_implementation: "sdpa"  # 使用 PyTorch 内置的 SDPA，无需安装 flash_attn
+  
+  # QLoRA Configuration
+  use_lora: true
+  lora_r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj" 
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  
+  # Quantization
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+
+# Training Configuration
+training:
+  output_dir: "outputs/sft"
+  
+  # Optimization
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  
+  # Batch Size
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 8
+  # Effective batch size = 4 GPUs * 4 batch * 8 accum = 128
+  
+  # Steps
+  num_train_epochs: 3
+  max_steps: -1  # -1 表示使用 epochs
+  eval_steps: 500
+  save_steps: 500
+  logging_steps: 10
+  
+  # Memory Optimization
+  gradient_checkpointing: true
+  optim: "adamw_torch"
+  
+  # Mixed Precision
+  bf16: true
+  fp16: false
+  
+  # Other
+  seed: 42
+  dataloader_num_workers: 4
+  remove_unused_columns: false
+
+# Data Configuration
+data:
+  dataset_name: "alpaca"  # alpaca, sharegpt, openorca
+  max_seq_length: 4096
+  packing: false  # 是否打包短序列
+  
+  # Preprocessing
+  train_split: "train"
+  validation_split: null  # 如无验证集，从 train 中分割
+  validation_size: 0.02
+
+# DeepSpeed Configuration
+deepspeed:
+  stage: 2
+  offload_optimizer: false
+  offload_param: false
+
+# Logging
+logging:
+  report_to: "wandb"
+  project_name: "qwen3-4b-sft"
+  run_name: null  # 自动生成

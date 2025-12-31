@@ -1,0 +1,94 @@
+# Qwen3-4B DPO Training Configuration
+# =====================================
+
+# Model Configuration
+model:
+  # Policy model (从 SFT 加载)
+  policy_model: "outputs/sft/final"
+  
+  # Reference model (可以是 SFT 模型或基座模型)
+  # 设为 null 表示使用与 policy_model 相同的初始化
+  reference_model: null
+  
+  torch_dtype: "bfloat16"
+  attn_implementation: "sdpa"  # 使用 PyTorch 内置的 SDPA
+  
+  # LoRA Configuration (继续微调)
+  use_lora: true
+  lora_r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  
+  # Quantization
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_quant_type: "nf4"
+
+# DPO Training Configuration  
+training:
+  output_dir: "outputs/dpo"
+  
+  # DPO Specific
+  beta: 0.1  # KL 惩罚系数 (典型范围: 0.05-0.5)
+  loss_type: "sigmoid"  # sigmoid, hinge, ipo
+  
+  # Optimization
+  learning_rate: 5.0e-5  # DPO 通常用更小的学习率
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  
+  # Batch Size (DPO 需要更大的 batch，但要避免 OOM)
+  per_device_train_batch_size: 1  # 减小以避免 OOM
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 32  # 增加以保持 effective batch size
+  # Effective batch size = 4 GPUs * 1 batch * 32 accum = 128
+  
+  # Steps
+  num_train_epochs: 1
+  max_steps: 2000
+  eval_steps: 200
+  save_steps: 200
+  logging_steps: 10
+  
+  # Memory Optimization
+  # 注意: gradient_checkpointing 与 DDP + LoRA 有兼容性问题，暂时禁用
+  gradient_checkpointing: false
+  optim: "adamw_torch"
+  
+  # Mixed Precision
+  bf16: true
+  
+  # Other
+  seed: 42
+
+# Data Configuration
+data:
+  # 偏好数据集
+  dataset_name: "ultrafeedback"  # ultrafeedback, helpsteer, anthropic_hh
+  max_seq_length: 2048
+  max_prompt_length: 1024
+  
+  # 数据格式期望: {"prompt", "chosen", "rejected"}
+  prompt_column: "prompt"
+  chosen_column: "chosen"
+  rejected_column: "rejected"
+
+# DeepSpeed Configuration
+deepspeed:
+  stage: 2
+  offload_optimizer: false
+
+# Logging
+logging:
+  report_to: "wandb"
+  project_name: "qwen3-4b-dpo"
